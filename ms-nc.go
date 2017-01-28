@@ -43,6 +43,7 @@ func main() {
 	flag.Parse()
 
 	if version {
+		fmt.Printf("Version: %s\n", Version)
 		flag.PrintDefaults()
 		os.Exit(0)
 	}

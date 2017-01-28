@@ -20,8 +20,8 @@ const (
 
 func NewSender(addr string, r io.Reader, mBytes float32) {
 	sem := make(chan bool, MaxThreads)
-	ctx := context.Background()
-	rateLimiter := rate.NewLimiter(rate.Limit(mBytes), int(mBytes*2.0))
+	ctx, cancel := context.WithCancel(context.Background())
+	rateLimiter := rate.NewLimiter(rate.Limit(mBytes*1000000), int(mBytes*1000000*2.0))
 	chunkNumber := 0
 	for {
 		buf := make([]byte, ReadBufferSize)
@@ -32,13 +32,14 @@ func NewSender(addr string, r io.Reader, mBytes float32) {
 			chunkNumber++
 		}
 		if err := rateLimiter.WaitN(ctx, n); err != nil {
+			cancel()
 			log.Print(err)
 			return
 		}
 
 		go func(b []byte, cNumber int) {
 			sem <- true
-			err = send(addr, b, cNumber)
+			err = send(addr, b, cNumber, cancel)
 			if err != nil {
 				log.Print(err)
 			}
@@ -63,10 +64,11 @@ WAIT:
 	}
 }
 
-func send(addr string, buf []byte, c int) error {
+func send(addr string, buf []byte, c int, cancel context.CancelFunc) error {
 	r := bytes.NewReader(buf)
 	req, err := http.NewRequest("POST", "http://"+addr, r)
 	if err != nil {
+		cancel()
 		return err
 	}
 	req.Header.Add("Content-type", "application/octet-stream")
@@ -76,11 +78,13 @@ func send(addr string, buf []byte, c int) error {
 
 	res, err := client.Do(req)
 	if err != nil {
+		cancel()
 		return err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
+		cancel()
 		return errors.New("Failed")
 	}
 	return nil
