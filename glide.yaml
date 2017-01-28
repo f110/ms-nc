@@ -1,0 +1,8 @@
+package: github.com/f110/ms-nc
+import:
+- package: golang.org/x/time
+  subpackages:
+  - rate
+- package: golang.org/x/net
+  subpackages:
+  - context
